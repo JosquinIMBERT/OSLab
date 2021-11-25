@@ -61,6 +61,8 @@ task_t* create_task(task_routine_t f)
     t->tstate.output_from_dependencies_list = NULL;
     t->task_dependency_count = 0;
     t->parent_task = NULL;
+    pthread_mutex_init(&t->mtx_dep_count, NULL); //PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_init(&t->mtx_dep_done, NULL); //t->mtx_dep_done = PTHREAD_MUTEX_INITIALIZER;
 #endif
     
     t->status = INIT;
@@ -77,7 +79,9 @@ void submit_task(task_t *t)
 #ifdef WITH_DEPENDENCIES    
     if(active_task != NULL){
         t->parent_task = active_task;
+        pthread_mutex_lock(&(active_task->mtx_dep_count));
         active_task->task_dependency_count++;
+        pthread_mutex_unlock(&(active_task->mtx_dep_count));
         
         PRINT_DEBUG(100, "Dependency %u -> %u\n", active_task->task_id, t->task_id);
     }

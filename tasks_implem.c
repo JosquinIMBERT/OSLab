@@ -32,14 +32,14 @@ void delete_threads(void)
 void *tasks_consumer(void *arg){
     while(1){
         //Getting a task
-        task_t* t = dequeue_task(tqueue);
+        active_task = dequeue_task(tqueue);
         
         //Running the task
-        unsigned int result = t->fct(t, t->step);
+        unsigned int result = exec_task(active_task);
         
         //Checking the result
         if (result == TASK_COMPLETED){
-            terminate_task(t);
+            terminate_task(active_task);
             pthread_mutex_lock(&mtx_tasks);
             tasks_counter--;
             pthread_cond_signal(&cond_tasks); //Signal for main thread's task_waitall function
@@ -47,7 +47,7 @@ void *tasks_consumer(void *arg){
         }
 #ifdef WITH_DEPENDENCIES
         else { //TASK_TO_BE_RESUMED
-            t->status = WAITING;
+            active_task->status = WAITING;
         }
 #endif
     }
@@ -99,9 +99,15 @@ void terminate_task(task_t *t)
 #ifdef WITH_DEPENDENCIES
     if(t->parent_task != NULL){
         task_t *waiting_task = t->parent_task;
+
+        //pthread_mutex_lock(&(waiting_task->mtx_dep_done));
+        pthread_mutex_lock(&(waiting_task->mtx_dep_count));
         waiting_task->task_dependency_done++;
         
         task_check_runnable(waiting_task);
+        
+        pthread_mutex_unlock(&(waiting_task->mtx_dep_count));
+        //pthread_mutex_unlock(&(waiting_task->mtx_dep_done));
     }
 #endif
 
