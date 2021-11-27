@@ -48,6 +48,11 @@ void *tasks_consumer(void *arg){
 #ifdef WITH_DEPENDENCIES
         else { //TASK_TO_BE_RESUMED
             active_task->status = WAITING;
+
+            pthread_mutex_lock(&(active_task->mtx_dep));            
+            task_check_runnable(active_task);
+            pthread_mutex_unlock(&(active_task->mtx_dep));
+
         }
 #endif
     }
@@ -100,14 +105,12 @@ void terminate_task(task_t *t)
     if(t->parent_task != NULL){
         task_t *waiting_task = t->parent_task;
 
-        //pthread_mutex_lock(&(waiting_task->mtx_dep_done));
-        pthread_mutex_lock(&(waiting_task->mtx_dep_count));
+        pthread_mutex_lock(&(waiting_task->mtx_dep));
         waiting_task->task_dependency_done++;
         
         task_check_runnable(waiting_task);
         
-        pthread_mutex_unlock(&(waiting_task->mtx_dep_count));
-        //pthread_mutex_unlock(&(waiting_task->mtx_dep_done));
+        pthread_mutex_unlock(&(waiting_task->mtx_dep));
     }
 #endif
 
@@ -116,7 +119,9 @@ void terminate_task(task_t *t)
 void task_check_runnable(task_t *t)
 {
 #ifdef WITH_DEPENDENCIES
-    if(t->task_dependency_done == t->task_dependency_count){
+    if(t->task_dependency_done == t->task_dependency_count && t->status==WAITING && t->task_dependency_count>0){
+        t->task_dependency_done = 0;
+        t->task_dependency_count = 0;
         t->status = READY;
         dispatch_task(t);
     }
