@@ -6,8 +6,9 @@
 #include "tasks_queue.h"
 #include "debug.h"
 
-tasks_queue_t *tqueue= NULL;
+tasks_queue_t **tqueues=NULL;
 pthread_t *thread_pool= NULL;
+__thread unsigned long thread_id;
 
 //Thread protection for counting the tasks
 pthread_mutex_t mtx_tasks = PTHREAD_MUTEX_INITIALIZER;
@@ -16,12 +17,18 @@ int tasks_counter = 0;
 
 void create_queues(void)
 {
-    tqueue = create_tasks_queue();
+    tqueues = malloc(sizeof(tasks_queue_t *) * THREAD_COUNT);
+    for(int i=0; i<THREAD_COUNT; i++) {
+        tqueues[i] = create_tasks_queue();
+    }
 }
 
 void delete_queues(void)
 {
-    free_tasks_queue(tqueue);
+    for(int i=0; i<THREAD_COUNT; i++) {
+        free_tasks_queue(tqueues[i]);
+    }
+    free(tqueues);
 }    
 
 void delete_threads(void)
@@ -30,6 +37,7 @@ void delete_threads(void)
 }  
 
 void *tasks_consumer(void *arg){
+    thread_id = (unsigned long)arg;
     while(1){
         //Getting a task
         active_task = get_task_to_execute();
@@ -63,8 +71,8 @@ void create_thread_pool(void)
     thread_pool = malloc(sizeof(pthread_t) * THREAD_COUNT);
 
     //Creating the threads
-    for(int i=0; i<THREAD_COUNT; i++) {
-        if( pthread_create(&thread_pool[i], NULL, tasks_consumer, NULL) != 0 ) {
+    for(unsigned long i=0; i<THREAD_COUNT; i++) {
+        if( pthread_create(&thread_pool[i], NULL, tasks_consumer, (void *)i) != 0 ) {
             fprintf(stderr, "Failed to create the tasks consuming thread.\n");
             exit(1);
         }
@@ -75,12 +83,14 @@ void create_thread_pool(void)
 
 void dispatch_task(task_t *t)
 {
-    enqueue_task(tqueue, t);
+    //TODO apply round robin to enqueue on the good queue
+    //enqueue_task(tqueue, t);
 }
 
 task_t* get_task_to_execute(void)
 {
-    return dequeue_task(tqueue);
+    //TODO dequeue on the current thread's queue
+    return NULL;//dequeue_task(tqueue);
 }
 
 unsigned int exec_task(task_t *t)
