@@ -32,7 +32,7 @@ void delete_threads(void)
 void *tasks_consumer(void *arg){
     while(1){
         //Getting a task
-        active_task = dequeue_task(tqueue);
+        active_task = get_task_to_execute();
         
         //Running the task
         unsigned int result = exec_task(active_task);
