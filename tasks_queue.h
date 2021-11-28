@@ -11,7 +11,6 @@ typedef struct tasks_queue{
     unsigned int task_buffer_size;
     unsigned int index;
     pthread_mutex_t mutex;
-    pthread_cond_t fullCount;
 } tasks_queue_t;
     
 

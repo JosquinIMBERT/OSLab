@@ -14,7 +14,6 @@ tasks_queue_t* create_tasks_queue(void)
 
     //Initialization of semaphores for thread safe queue
     pthread_mutex_init(&q->mutex, NULL);
-    pthread_cond_init(&q->fullCount, NULL);
 
     q->task_buffer_size = QUEUE_SIZE;
     q->task_buffer = (task_t**) malloc(sizeof(task_t*) * q->task_buffer_size);
@@ -46,25 +45,24 @@ void enqueue_task(tasks_queue_t *q, task_t *t)
     q->task_buffer[q->index] = t;
     q->index++;
 
-    pthread_cond_signal(&q->fullCount);
     pthread_mutex_unlock(&q->mutex);
 }
 
 
 task_t* dequeue_task(tasks_queue_t *q)
 {
+    task_t *ret;
     //Tasks Consumer
     pthread_mutex_lock(&q->mutex);
-    while(q->index<=0) {
-        pthread_cond_wait(&q->fullCount, &q->mutex);
+    if(q->index<=0) {
+        ret = NULL;
+    } else {
+        ret = q->task_buffer[q->index-1];
+        q->index--;
     }
-
-    task_t *t = q->task_buffer[q->index-1];
-    q->index--;
-
     pthread_mutex_unlock(&q->mutex);
 
-    return t;
+    return ret;
 }
 
 void resize(tasks_queue_t *q) {

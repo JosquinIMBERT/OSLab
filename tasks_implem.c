@@ -85,27 +85,36 @@ void create_thread_pool(void)
 
 void dispatch_task(task_t *t)
 {
-    //Declaration
-    tasks_queue_t *q;
+#ifdef WITH_DEPENDENCIES
+    if(t->parent_task!=NULL) {
+        enqueue_task(tqueues[thread_id], t);
+    } else {
+#endif
+        //Declaration
+        tasks_queue_t *q;
 
-    //Getting queue to use
-    pthread_mutex_lock(&mtx_queues);
-    q = tqueues[current_index];
-    current_index = (current_index+1)%THREAD_COUNT;
-    pthread_mutex_unlock(&mtx_queues);
+        //Getting queue to use
+        pthread_mutex_lock(&mtx_queues);
+        q = tqueues[current_index];
+        current_index = (current_index+1)%THREAD_COUNT;
+        pthread_mutex_unlock(&mtx_queues);
 
-    //Enqueuing
-    enqueue_task(q, t);
+        //Enqueuing
+        enqueue_task(q, t);
+#ifdef WITH_DEPENDENCIES
+    }
+#endif
 }
 
 task_t* get_task_to_execute(void)
 {
-    //Declaration
-    task_t *ret;
-    tasks_queue_t *q = tqueues[thread_id];
+    task_t *ret = NULL;
+    unsigned long ind = thread_id;
 
-    //Dequeuing
-    ret = dequeue_task(q);
+    while(ret==NULL) {
+        ret = dequeue_task(tqueues[ind]);
+        ind = (ind+1)%THREAD_COUNT;
+    }
 
     return ret;
 }
