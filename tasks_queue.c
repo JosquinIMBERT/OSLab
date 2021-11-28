@@ -13,8 +13,8 @@ tasks_queue_t* create_tasks_queue(void)
     tasks_queue_t *q = (tasks_queue_t*) malloc(sizeof(tasks_queue_t));
 
     //Initialization of semaphores for thread safe queue
-    sem_init(&q->mutex,0,1);
-    sem_init(&q->fullCount,0,0);
+    pthread_mutex_init(&q->mutex, NULL);
+    pthread_cond_init(&q->fullCount, NULL);
 
     q->task_buffer_size = QUEUE_SIZE;
     q->task_buffer = (task_t**) malloc(sizeof(task_t*) * q->task_buffer_size);
@@ -37,35 +37,32 @@ void free_tasks_queue(tasks_queue_t *q)
 
 void enqueue_task(tasks_queue_t *q, task_t *t)
 {
-    /*if(q->index == q->task_buffer_size){
-        fprintf(stderr,"ERROR: the queue of tasks is full\n");
-        exit(EXIT_FAILURE);
-    }*/
-
     //Tasks Producer
-    sem_wait(&q->mutex);
+    pthread_mutex_lock(&q->mutex);
+
     if(q->index==q->task_buffer_size) {
         resize(q);
     }
     q->task_buffer[q->index] = t;
     q->index++;
-    sem_post(&q->mutex);
-    sem_post(&q->fullCount);
+
+    pthread_cond_signal(&q->fullCount);
+    pthread_mutex_unlock(&q->mutex);
 }
 
 
 task_t* dequeue_task(tasks_queue_t *q)
 {
-    /*if(q->index == 0){
-        return NULL;
-    }*/
-
     //Tasks Consumer
-    sem_wait(&q->fullCount); //If there is no more tasks, we wait
-    sem_wait(&q->mutex);
+    pthread_mutex_lock(&q->mutex);
+    while(q->index<=0) {
+        pthread_cond_wait(&q->fullCount, &q->mutex);
+    }
+
     task_t *t = q->task_buffer[q->index-1];
     q->index--;
-    sem_post(&q->mutex);
+
+    pthread_mutex_unlock(&q->mutex);
 
     return t;
 }
@@ -75,10 +72,12 @@ void resize(tasks_queue_t *q) {
 
     //Doube size
     task_t **q_old = q->task_buffer;
-
-    //q->task_buffer = realloc(q_old, new_size * sizeof(task_t *));
     
     q->task_buffer = malloc(new_size * sizeof(task_t *));
+    if(q->task_buffer==NULL) {
+        fprintf(stderr, "ERROR: malloc failed for queue resizing.\n");
+        exit(1);
+    }
     memcpy(q->task_buffer, q_old, q->task_buffer_size * sizeof(task_t *));
     free(q_old);
 

@@ -10,8 +10,8 @@ typedef struct tasks_queue{
     task_t** task_buffer;
     unsigned int task_buffer_size;
     unsigned int index;
-    sem_t mutex;
-    sem_t fullCount;
+    pthread_mutex_t mutex;
+    pthread_cond_t fullCount;
 } tasks_queue_t;
     
 

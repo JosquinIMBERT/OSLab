@@ -7,13 +7,16 @@
 #include "debug.h"
 
 tasks_queue_t **tqueues=NULL;
-pthread_t *thread_pool= NULL;
+pthread_t *thread_pool =NULL;
 __thread unsigned long thread_id;
+int current_index;
 
 //Thread protection for counting the tasks
 pthread_mutex_t mtx_tasks = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond_tasks =  PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_tasks = PTHREAD_COND_INITIALIZER;
 int tasks_counter = 0;
+
+pthread_mutex_t mtx_queues = PTHREAD_MUTEX_INITIALIZER;
 
 void create_queues(void)
 {
@@ -21,6 +24,7 @@ void create_queues(void)
     for(int i=0; i<THREAD_COUNT; i++) {
         tqueues[i] = create_tasks_queue();
     }
+    current_index = 0;
 }
 
 void delete_queues(void)
@@ -77,20 +81,33 @@ void create_thread_pool(void)
             exit(1);
         }
     }
-
-    //free(thread_pool);
 }
 
 void dispatch_task(task_t *t)
 {
-    //TODO apply round robin to enqueue on the good queue
-    //enqueue_task(tqueue, t);
+    //Declaration
+    tasks_queue_t *q;
+
+    //Getting queue to use
+    pthread_mutex_lock(&mtx_queues);
+    q = tqueues[current_index];
+    current_index = (current_index+1)%THREAD_COUNT;
+    pthread_mutex_unlock(&mtx_queues);
+
+    //Enqueuing
+    enqueue_task(q, t);
 }
 
 task_t* get_task_to_execute(void)
 {
-    //TODO dequeue on the current thread's queue
-    return NULL;//dequeue_task(tqueue);
+    //Declaration
+    task_t *ret;
+    tasks_queue_t *q = tqueues[thread_id];
+
+    //Dequeuing
+    ret = dequeue_task(q);
+
+    return ret;
 }
 
 unsigned int exec_task(task_t *t)
@@ -129,7 +146,7 @@ void terminate_task(task_t *t)
 void task_check_runnable(task_t *t)
 {
 #ifdef WITH_DEPENDENCIES
-    if(t->task_dependency_done == t->task_dependency_count && t->status==WAITING && t->task_dependency_count>0){
+    if(t->task_dependency_done == t->task_dependency_count && t->status==WAITING){
         t->task_dependency_done = 0;
         t->task_dependency_count = 0;
         t->status = READY;
